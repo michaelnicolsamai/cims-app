@@ -1,0 +1,755 @@
+// prisma/schema.prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+////////////////////////////////////////
+// 1. ENUMS – Real-world SME friendly
+////////////////////////////////////////
+
+enum UserRole {
+  ADMIN // SME owner / manager
+  MANAGER
+  STAFF
+}
+
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  CORPORATE
+  REGULAR
+  WALK_IN
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY // Orange Money, Africell Money, etc.
+  BANK_TRANSFER
+  POS
+  CREDIT
+  CHEQUE
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  PENDING
+  OVERDUE
+  REFUNDED
+}
+
+enum SaleStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+  RETURNED
+}
+
+enum RegionSierraLeone {
+  EASTERN
+  NORTHERN
+  NORTH_WEST
+  SOUTHERN
+  WESTERN_AREA
+}
+
+enum AnalyticsType {
+  TOP_CUSTOMERS
+  SALES_TREND_MONTHLY
+  CUSTOMER_CHURN_RISK
+  REVENUE_FORECAST
+  BEST_SELLING_PRODUCTS
+  RETURNING_CUSTOMERS
+  PAYMENT_METHODS_ANALYSIS
+  REGIONAL_SALES
+  CUSTOMER_ACQUISITION
+  INVENTORY_ALERTS
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+  OUT_OF_STOCK
+}
+
+enum NotificationType {
+  LOW_STOCK
+  PAYMENT_OVERDUE
+  NEW_CUSTOMER
+  BIG_SALE
+  SYSTEM_ALERT
+  CUSTOMER_CHURN_RISK
+}
+
+enum FileType {
+  CUSTOMER_DOCUMENT
+  PRODUCT_IMAGE
+  INVOICE
+  REPORT_EXPORT
+  BUSINESS_LOGO
+}
+
+enum SMSMessageType {
+  WELCOME
+  PAYMENT_REMINDER
+  PROMOTIONAL
+  ORDER_CONFIRMATION
+  DELIVERY_UPDATE
+  CUSTOMER_SERVICE
+}
+
+enum SMSStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  EXPIRED
+}
+
+enum DistrictType {
+  URBAN
+  RURAL
+  MIXED
+}
+
+enum LocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+////////////////////////////////////////
+// 2. MODELS
+////////////////////////////////////////
+
+// 1. Country (Currently focused on Sierra Leone, but scalable)
+model Country {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  isoCode   String         @unique // "SL"
+  phoneCode String // "+232"
+  currency  String // "SLL"
+  timezone  String // "Africa/Freetown"
+  status    LocationStatus @default(ACTIVE)
+
+  regions   Region[]
+  users     User[] // Businesses in this country
+  customers Customer[] // Customers in this country
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("countries")
+}
+
+// 2. Region (Provinces of Sierra Leone)
+model Region {
+  id          String         @id @default(cuid())
+  name        String
+  code        String         @unique // "E", "N", "NW", "S", "W"
+  capital     String // Regional capital
+  population  Int? // Approximate population
+  area        Float? // Area in square kilometers
+  description String?
+  status      LocationStatus @default(ACTIVE)
+
+  // Relations
+  country   Country @relation(fields: [countryId], references: [id])
+  countryId String
+
+  districts District[]
+  customers Customer[] // Customers in this region
+  users     User[] // Businesses in this region
+  sales     Sale[] // Sales made in this region
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countryId, name])
+  @@index([countryId])
+  @@map("regions")
+}
+
+// 3. District (Districts within regions)
+model District {
+  id           String         @id @default(cuid())
+  name         String
+  code         String? // District code
+  capital      String? // District headquarters
+  population   Int? // Approximate population
+  area         Float? // Area in square kilometers
+  districtType DistrictType   @default(MIXED)
+  description  String?
+  status       LocationStatus @default(ACTIVE)
+
+  // Relations
+  region   Region @relation(fields: [regionId], references: [id])
+  regionId String
+
+  chiefdoms Chiefdom[]
+  customers Customer[] // Customers in this district
+  users     User[] // Businesses in this district
+  sales     Sale[] // Sales made in this district
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([regionId, name])
+  @@index([regionId])
+  @@map("districts")
+}
+
+// 4. Chiefdom (Traditional leadership areas - unique to Sierra Leone)
+model Chiefdom {
+  id          String         @id @default(cuid())
+  name        String
+  chiefName   String? // Name of the paramount chief
+  population  Int? // Approximate population
+  description String?
+  status      LocationStatus @default(ACTIVE)
+
+  // Relations
+  district   District @relation(fields: [districtId], references: [id])
+  districtId String
+
+  locations Location[]
+  customers Customer[] // Customers in this chiefdom
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([districtId, name])
+  @@index([districtId])
+  @@map("chiefdoms")
+}
+
+// 5. Location (Specific towns/villages within chiefdoms)
+model Location {
+  id          String         @id @default(cuid())
+  name        String
+  latitude    Float?
+  longitude   Float?
+  population  Int? // Approximate population
+  description String?
+  status      LocationStatus @default(ACTIVE)
+
+  // Relations
+  chiefdom   Chiefdom @relation(fields: [chiefdomId], references: [id])
+  chiefdomId String
+
+  customers Customer[] // Customers in this specific location
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chiefdomId, name])
+  @@index([chiefdomId])
+  @@map("locations")
+}
+
+// 6. User (SME Owner & Staff)
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique @db.VarChar(255)
+  emailVerified DateTime?
+  image         String?
+  password      String? // null if using OAuth
+  role          UserRole  @default(STAFF)
+
+  // Business Info
+  businessName String
+  phone        String?
+  businessType String? // Retail, Wholesale, Service, etc.
+
+  // Location Fields
+  country   Country? @relation(fields: [countryId], references: [id])
+  countryId String?
+
+  region   Region? @relation(fields: [regionId], references: [id])
+  regionId String?
+
+  district   District? @relation(fields: [districtId], references: [id])
+  districtId String?
+
+  // Backward compatibility
+  location RegionSierraLeone @default(WESTERN_AREA)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts                Account[]
+  sessions                Session[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  userSettings            UserSettings?
+
+  // Business data relations
+  customers           Customer[]
+  sales               Sale[]                @relation("SaleOwner")
+  soldSales           Sale[]                @relation("SaleSoldBy")
+  products            Product[]
+  analyticsLogs       AnalyticsLog[]
+  notifications       Notification[]
+  expenses            Expense[]
+  files               File[]
+  smsLogs             SMSLog[]
+  auditLogs           AuditLog[]
+  CustomerInteraction CustomerInteraction[]
+  DataExport          DataExport[]
+
+  @@index([countryId])
+  @@index([regionId])
+  @@index([districtId])
+  @@map("users")
+}
+
+// 7. Authentication & Verification Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// 8. User Settings
+model UserSettings {
+  id String @id @default(cuid())
+
+  // Business Preferences
+  currency   String @default("SLL")
+  timezone   String @default("Africa/Freetown")
+  dateFormat String @default("DD/MM/YYYY")
+
+  // Notifications
+  emailNotifications Boolean @default(true)
+  lowStockAlerts     Boolean @default(true)
+  paymentReminders   Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+
+  // Analytics
+  dashboardWidgets Json? // Custom dashboard layout
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// 9. Customer
+model Customer {
+  id           String @id @default(cuid())
+  customerCode String @unique @default(cuid()) // e.g., CUST-0001 (display only)
+
+  name           String
+  phone          String
+  alternatePhone String?
+  email          String? @db.VarChar(255)
+  address        String?
+  city           String  @default("Freetown")
+
+  // Enhanced Location Fields
+  country   Country? @relation(fields: [countryId], references: [id])
+  countryId String?
+
+  region   Region? @relation(fields: [regionId], references: [id])
+  regionId String?
+
+  district   District? @relation(fields: [districtId], references: [id])
+  districtId String?
+
+  chiefdom   Chiefdom? @relation(fields: [chiefdomId], references: [id])
+  chiefdomId String?
+
+  location   Location? @relation(fields: [locationId], references: [id])
+  locationId String?
+
+  // Backward compatibility
+  regionOld RegionSierraLeone @default(WESTERN_AREA)
+
+  type CustomerType @default(RETAIL)
+  tags String[] // e.g., ["VIP", "Late Payer", "Bulk Buyer"]
+
+  // Loyalty & Insights
+  totalSpent   Decimal   @default(0) @db.Decimal(12, 2)
+  totalVisits  Int       @default(0)
+  loyaltyScore Int       @default(0) // 0–100
+  lastVisit    DateTime?
+  firstVisit   DateTime?
+
+  notes String?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  sales                Sale[]
+  files                File[]
+  customerInteractions CustomerInteraction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([phone])
+  @@index([totalSpent(sort: Desc)])
+  @@index([countryId])
+  @@index([regionId])
+  @@index([districtId])
+  @@index([chiefdomId])
+  @@index([locationId])
+  @@map("customers")
+}
+
+// 10. Product
+model Product {
+  id          String  @id @default(cuid())
+  sku         String  @unique
+  name        String
+  category    String?
+  description String?
+
+  costPrice     Decimal       @db.Decimal(10, 2)
+  sellingPrice  Decimal       @db.Decimal(10, 2)
+  currentStock  Int           @default(0)
+  lowStockAlert Int           @default(10)
+  unit          String        @default("piece") // kg, liter, pack, etc.
+  status        ProductStatus @default(ACTIVE)
+
+  barcode  String?
+  supplier String?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  saleItems SaleItem[]
+  files     File[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([sku])
+  @@index([currentStock])
+  @@map("products")
+}
+
+// 11. Sale - FIXED: Added relation names to avoid ambiguity
+model Sale {
+  id            String @id @default(cuid())
+  invoiceNumber String @unique // INV-2025-0001
+
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+
+  items SaleItem[]
+
+  subtotal    Decimal @db.Decimal(12, 2)
+  discount    Decimal @default(0) @db.Decimal(10, 2)
+  tax         Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount Decimal @db.Decimal(12, 2)
+  amountPaid  Decimal @default(0) @db.Decimal(12, 2)
+  balanceDue  Decimal @default(0) @db.Decimal(12, 2)
+
+  paymentMethod PaymentMethod @default(CASH)
+  paymentStatus PaymentStatus @default(PAID)
+  status        SaleStatus    @default(COMPLETED)
+
+  saleDate DateTime  @default(now())
+  dueDate  DateTime? // For credit sales
+  notes    String?
+
+  // Location where sale was made
+  saleRegion   Region? @relation(fields: [saleRegionId], references: [id])
+  saleRegionId String?
+
+  saleDistrict   District? @relation(fields: [saleDistrictId], references: [id])
+  saleDistrictId String?
+
+  // FIXED: Added relation names
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, name: "SaleOwner")
+  ownerId String
+
+  soldBy   User   @relation(fields: [soldById], references: [id], onDelete: Cascade, name: "SaleSoldBy")
+  soldById String
+
+  files File[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([saleDate])
+  @@index([invoiceNumber])
+  @@index([saleRegionId])
+  @@index([saleDistrictId])
+  @@map("sales")
+}
+
+// 12. Sale Item (Line items in a sale)
+model SaleItem {
+  id String @id @default(cuid())
+
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId String
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  productName String // Snapshot in case product is deleted later
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  totalPrice  Decimal @db.Decimal(12, 2)
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+// 13. Analytics Log
+model AnalyticsLog {
+  id      String        @id @default(cuid())
+  type    AnalyticsType
+  period  String // e.g., "2025-10", "Q4 2025", "last_30_days"
+  title   String?
+  summary String?
+  data    Json // Full insight result (chart-ready)
+
+  generatedAt DateTime @default(now())
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  @@index([ownerId])
+  @@index([type])
+  @@index([generatedAt])
+  @@map("analytics_logs")
+}
+
+// 14. Expense Tracking
+model Expense {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  amount        Decimal  @db.Decimal(10, 2)
+  category      String // Rent, Utilities, Salaries, Supplies, etc.
+  expenseDate   DateTime @default(now())
+  receiptNumber String?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  files File[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([expenseDate])
+  @@map("expenses")
+}
+
+// 15. Notification System
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  actionUrl String? // Link to relevant page
+  metadata  Json? // Additional data
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@index([ownerId])
+  @@index([createdAt(sort: Desc)])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// 16. File Storage (Supabase Integration)
+model File {
+  id       String   @id @default(cuid())
+  name     String
+  url      String // Supabase storage URL
+  type     FileType
+  size     Int? // File size in bytes
+  mimeType String?
+
+  // Polymorphic relations
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  sale   Sale?   @relation(fields: [saleId], references: [id])
+  saleId String?
+
+  expense   Expense? @relation(fields: [expenseId], references: [id])
+  expenseId String?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  uploadedAt DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([productId])
+  @@index([saleId])
+  @@index([type])
+  @@map("files")
+}
+
+// 17. Customer Feedback/Interactions
+model CustomerInteraction {
+  id           String    @id @default(cuid())
+  type         String // Call, Visit, Email, Complaint, Follow-up
+  summary      String
+  details      String?
+  followUpDate DateTime?
+  isCompleted  Boolean   @default(false)
+
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([ownerId])
+  @@index([followUpDate])
+  @@map("customer_interactions")
+}
+
+// 18. Backup and Data Export Logs
+model DataExport {
+  id          String  @id @default(cuid())
+  type        String // CUSTOMERS, SALES, PRODUCTS, FULL_BACKUP
+  format      String // CSV, JSON, PDF
+  fileUrl     String? // Supabase URL for downloaded file
+  recordCount Int?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([ownerId])
+  @@index([requestedAt])
+  @@map("data_exports")
+}
+
+// 19. SMS Logging
+model SMSLog {
+  id           String         @id @default(cuid())
+  userId       String?
+  phoneNumber  String
+  message      String
+  messageType  SMSMessageType
+  status       SMSStatus      @default(PENDING)
+  provider     String? // Africas Talking, etc.
+  providerId   String? // Provider's message ID
+  errorMessage String?
+  cost         Float?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+  deliveredAt DateTime?
+
+  @@index([userId])
+  @@index([phoneNumber])
+  @@index([status])
+  @@map("sms_logs")
+}
+
+// 20. Audit Logging
+model AuditLog {
+  id           String  @id @default(cuid())
+  action       String
+  resourceType String // 'customer', 'sale', 'product', 'user', etc.
+  resourceId   String?
+  userId       String?
+  userIp       String?
+  userAgent    String?
+  details      Json?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
