@@ -369,6 +369,21 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model OTP {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // 6-digit OTP code
+  purpose   String   // REGISTRATION, PASSWORD_RESET, etc.
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0) // Track verification attempts
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+  @@index([code])
+  @@map("otps")
+}
+
 // 8. User Settings
 model UserSettings {
   id String @id @default(cuid())
