@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Mail, Lock, User, Building, Phone, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Building, Phone } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -32,27 +32,63 @@ export default function RegisterPage() {
     });
   };
 
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [sendingOTP, setSendingOTP] = useState(false);
-
-  // Check if OTP is already verified from URL params
+  // Check if returning from OTP page (shouldn't happen in new flow, but handle it)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("otpVerified") === "true" && params.get("email") === formData.email) {
-      setOtpVerified(true);
+    if (params.get("otpVerified") === "true" && params.get("email")) {
+      const email = params.get("email");
+      // If we have registration data, complete registration
+      const registrationData = sessionStorage.getItem(`registration_data_${email}`);
+      if (registrationData) {
+        // Registration should have been completed on OTP page
+        // Just redirect to login
+        router.push("/login?registered=true");
+      }
     }
-  }, []);
+  }, [router]);
 
-  const handleSendOTP = async () => {
-    if (!formData.email) {
-      setError("Please enter your email address first");
+  const handleRegister = async () => {
+    // Validate form first
+    if (!formData.firstName || !formData.lastName) {
+      setError("First name and last name are required");
       return;
     }
 
-    setSendingOTP(true);
+    if (!formData.email) {
+      setError("Email address is required");
+      return;
+    }
+
+    if (!formData.businessName) {
+      setError("Business name is required");
+      return;
+    }
+
+    if (!formData.phone || formData.phone.trim() === "") {
+      setError("Phone number is required");
+      return;
+    }
+
+    if (!formData.businessType || formData.businessType.trim() === "") {
+      setError("Business type is required");
+      return;
+    }
+
+    if (!formData.password || formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
     setError("");
 
     try {
+      // Send OTP and redirect to OTP verification page
       const response = await fetch("/api/auth/otp/send", {
         method: "POST",
         headers: {
@@ -71,85 +107,33 @@ export default function RegisterPage() {
         throw new Error(data.error || "Failed to send OTP");
       }
 
-      // Redirect to OTP verification page
-      router.push(
-        `/verify-otp?email=${encodeURIComponent(formData.email)}&purpose=REGISTRATION&name=${encodeURIComponent(`${formData.firstName} ${formData.lastName}`.trim())}`
-      );
-    } catch (err: any) {
-      setError(err.message || "Failed to send OTP");
-    } finally {
-      setSendingOTP(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (!otpVerified) {
-      setError("Please verify your email with OTP first");
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Get OTP code from sessionStorage or prompt
-      const otpCode = sessionStorage.getItem(`otp_${formData.email}`);
-      if (!otpCode) {
-        setError("OTP verification expired. Please verify again.");
-        setOtpVerified(false);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // Store form data in sessionStorage to retrieve after OTP verification
+      sessionStorage.setItem(
+        `registration_data_${formData.email}`,
+        JSON.stringify({
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
           password: formData.password,
           businessName: formData.businessName,
-          phone: formData.phone || undefined,
-          businessType: formData.businessType || undefined,
-          otpCode,
-        }),
-      });
+          phone: formData.phone,
+          businessType: formData.businessType,
+        })
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Registration failed");
-        if (data.error?.includes("OTP")) {
-          setOtpVerified(false);
-        }
-        return;
-      }
-
-      // Clear OTP from sessionStorage
-      sessionStorage.removeItem(`otp_${formData.email}`);
-
-      // Redirect to login
-      router.push("/login?registered=true");
+      // Redirect to OTP verification page
+      router.push(
+        `/verify-otp?email=${encodeURIComponent(formData.email)}&purpose=REGISTRATION&name=${encodeURIComponent(`${formData.firstName} ${formData.lastName}`.trim())}&redirect=register`
+      );
     } catch (err: any) {
-      setError(err.message || "An error occurred during registration");
-    } finally {
+      setError(err.message || "Failed to send OTP. Please try again.");
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleRegister();
   };
 
   return (
@@ -263,7 +247,7 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <label htmlFor="phone" className="text-sm font-medium text-gray-700">
-                  Phone (Optional)
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -274,6 +258,7 @@ export default function RegisterPage() {
                     placeholder="+232-76-123456"
                     value={formData.phone}
                     onChange={handleChange}
+                    required
                     disabled={loading}
                     className="pl-10 h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
@@ -282,18 +267,31 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <label htmlFor="businessType" className="text-sm font-medium text-gray-700">
-                  Business Type (Optional)
+                  Business Type <span className="text-red-500">*</span>
                 </label>
-                <Input
+                <select
                   id="businessType"
                   name="businessType"
-                  type="text"
-                  placeholder="Retail, Wholesale, Service..."
                   value={formData.businessType}
-                  onChange={handleChange}
+                  onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
+                  required
                   disabled={loading}
-                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                />
+                  className="w-full h-11 px-3 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select Business Type</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Wholesale">Wholesale</option>
+                  <option value="Service">Service</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="E-commerce">E-commerce</option>
+                  <option value="Restaurant/Food Service">Restaurant/Food Service</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Education">Education</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Transportation">Transportation</option>
+                  <option value="Hospitality">Hospitality</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
 
               <div className="space-y-2">
@@ -360,50 +358,23 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {!otpVerified ? (
-                <Button
-                  type="button"
-                  onClick={handleSendOTP}
-                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                  disabled={sendingOTP || !formData.email}
-                >
-                  {sendingOTP ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Sending OTP...
-                    </span>
-                  ) : (
-                    "Send Verification Code"
-                  )}
-                </Button>
-              ) : (
-                <>
-                  <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
-                    Email verified! You can now complete registration.
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating account...
-                      </span>
-                    ) : (
-                      "Create Account"
-                    )}
-                  </Button>
-                </>
-              )}
+              <Button
+                type="submit"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending OTP...
+                  </span>
+                ) : (
+                  "Register"
+                )}
+              </Button>
             </form>
 
             <div className="mt-6 text-center">

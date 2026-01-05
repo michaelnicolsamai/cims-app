@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ProductStatus } from "@prisma/client";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProductEditModal } from "@/components/products/product-edit-modal";
 
 interface Product {
   id: string;
@@ -70,11 +74,17 @@ interface ProductsResponse {
 }
 
 export function ProductsView() {
+  const routes = useRoutes();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteProduct, setDeleteProduct] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -222,7 +232,7 @@ export function ProductsView() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Link href="/dashboard/admin/products/add">
+          <Link href={routes.productsAdd}>
             <Button size="sm">
               <Plus className="w-4 h-4 mr-2" />
               Add Product
@@ -629,17 +639,53 @@ export function ProductsView() {
                             </span>
                           </td>
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <Button variant="ghost" size="sm">
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            </div>
+                            <ActionMenu
+                              items={[
+                                {
+                                  label: "View",
+                                  icon: <Eye className="w-4 h-4" />,
+                                  onClick: async () => {
+                                    try {
+                                      const response = await fetch(`/api/products/${product.id}`);
+                                      const data = await response.json();
+                                      if (data.success) {
+                                        setSelectedProduct(data.data);
+                                        setModalMode("view");
+                                        setIsModalOpen(true);
+                                      }
+                                    } catch (error) {
+                                      console.error("Error fetching product:", error);
+                                    }
+                                  },
+                                },
+                                {
+                                  label: "Edit",
+                                  icon: <Edit className="w-4 h-4" />,
+                                  onClick: async () => {
+                                    try {
+                                      const response = await fetch(`/api/products/${product.id}`);
+                                      const data = await response.json();
+                                      if (data.success) {
+                                        setSelectedProduct(data.data);
+                                        setModalMode("edit");
+                                        setIsModalOpen(true);
+                                      }
+                                    } catch (error) {
+                                      console.error("Error fetching product:", error);
+                                    }
+                                  },
+                                },
+                                {
+                                  label: "Delete",
+                                  icon: <Trash2 className="w-4 h-4" />,
+                                  onClick: () => {
+                                    setDeleteProduct(product);
+                                    setIsDeleteDialogOpen(true);
+                                  },
+                                  variant: "destructive",
+                                },
+                              ]}
+                            />
                           </td>
                         </tr>
                       );
@@ -709,6 +755,52 @@ export function ProductsView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Product Edit/View Modal */}
+      <ProductEditModal
+        product={selectedProduct}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        onSave={() => {
+          fetchProducts();
+        }}
+        mode={modalMode}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setDeleteProduct(null);
+        }}
+        onConfirm={async () => {
+          if (deleteProduct) {
+            try {
+              const response = await fetch(`/api/products/${deleteProduct.id}`, {
+                method: "DELETE",
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to delete product");
+              }
+
+              fetchProducts();
+            } catch (error) {
+              console.error("Error deleting product:", error);
+              alert("Failed to delete product. Please try again.");
+            }
+          }
+        }}
+        title="Delete Product"
+        message={`Are you sure you want to delete ${deleteProduct?.name}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }

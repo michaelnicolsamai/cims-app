@@ -41,7 +41,7 @@ export function RevenueForecastChart({ data }: RevenueForecastChartProps) {
         <CardTitle className="text-lg font-semibold text-gray-900">Revenue Forecast</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={400}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis

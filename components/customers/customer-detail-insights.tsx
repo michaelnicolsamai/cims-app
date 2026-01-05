@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoyaltyScoreCard } from "@/components/analytics/LoyaltyScoreCard";
 import { ChurnRiskIndicator } from "@/components/analytics/ChurnRiskIndicator";
@@ -26,6 +27,7 @@ interface CustomerInsight {
 }
 
 export function CustomerDetailInsights({ customerId }: { customerId: string }) {
+  const routes = useRoutes();
   const [insight, setInsight] = useState<CustomerInsight | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +76,7 @@ export function CustomerDetailInsights({ customerId }: { customerId: string }) {
 
   return (
     <div className="space-y-6">
-      <Link href="/dashboard/admin/insights/customers">
+      <Link href={routes.insights.customers}>
         <Button variant="ghost" size="sm">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Customer Insights

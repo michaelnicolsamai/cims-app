@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ interface SaleItem {
 
 export function AddSaleForm() {
   const router = useRouter();
+  const routes = useRoutes();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -185,6 +187,17 @@ export function AddSaleForm() {
         [field]: value,
       };
 
+      // If product is selected, auto-fill price and update product info
+      if (field === "productId" && value) {
+        const selectedProduct = products.find((p) => p.id === value);
+        if (selectedProduct) {
+          newItems[index].productName = selectedProduct.name;
+          newItems[index].unitPrice = Number(selectedProduct.sellingPrice);
+          newItems[index].totalPrice =
+            newItems[index].quantity * Number(selectedProduct.sellingPrice);
+        }
+      }
+
       // Recalculate total price
       if (field === "quantity" || field === "unitPrice") {
         newItems[index].totalPrice =
@@ -270,7 +283,7 @@ export function AddSaleForm() {
       }
 
       // Redirect to sales page
-      router.push("/dashboard/admin/sales");
+      router.push(routes.sales);
     } catch (err: any) {
       setError(err.message || "Failed to create sale");
     } finally {
@@ -285,7 +298,7 @@ export function AddSaleForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/admin/sales">
+          <Link href={routes.sales}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
@@ -475,8 +488,7 @@ export function AddSaleForm() {
               <CardContent>
                 {formData.items.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    No items added. Search for a product or click "Add Item" to
-                    add manually.
+                    No items added. Search for a product above or click "Add Item" to add a new item.
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -488,17 +500,28 @@ export function AddSaleForm() {
                         <div className="grid grid-cols-12 gap-4 items-end">
                           <div className="col-span-5">
                             <label className="text-sm font-medium text-gray-700 mb-2 block">
-                              Product Name
+                              Product <span className="text-red-500">*</span>
                             </label>
-                            <Input
-                              type="text"
-                              value={item.productName}
+                            <select
+                              value={item.productId || ""}
                               onChange={(e) =>
-                                updateItem(index, "productName", e.target.value)
+                                updateItem(index, "productId", e.target.value)
                               }
-                              placeholder="Enter product name"
-                              className="text-gray-900"
-                            />
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Select a product...</option>
+                              {products
+                                .filter((p) => p.currentStock > 0 || p.id === item.productId)
+                                .map((product) => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.name} - {product.sku} (Stock: {product.currentStock} {product.unit}) - {new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: "SLL",
+                                      minimumFractionDigits: 0,
+                                    }).format(product.sellingPrice)}
+                                  </option>
+                                ))}
+                            </select>
                           </div>
                           <div className="col-span-2">
                             <label className="text-sm font-medium text-gray-700 mb-2 block">
@@ -507,6 +530,7 @@ export function AddSaleForm() {
                             <Input
                               type="number"
                               min="1"
+                              max={item.productId ? products.find(p => p.id === item.productId)?.currentStock || undefined : undefined}
                               value={item.quantity}
                               onChange={(e) =>
                                 updateItem(
@@ -517,6 +541,11 @@ export function AddSaleForm() {
                               }
                               className="text-gray-900"
                             />
+                            {item.productId && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Available: {products.find(p => p.id === item.productId)?.currentStock || 0} {products.find(p => p.id === item.productId)?.unit || ""}
+                              </p>
+                            )}
                           </div>
                           <div className="col-span-2">
                             <label className="text-sm font-medium text-gray-700 mb-2 block">
@@ -535,7 +564,13 @@ export function AddSaleForm() {
                                 )
                               }
                               className="text-gray-900"
+                              placeholder="Auto-filled"
                             />
+                            {item.productId && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                From product catalog
+                              </p>
+                            )}
                           </div>
                           <div className="col-span-2">
                             <label className="text-sm font-medium text-gray-700 mb-2 block">

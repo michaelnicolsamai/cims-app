@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import { CustomerType } from "@prisma/client";
 
 export function AddCustomerForm() {
   const router = useRouter();
+  const routes = useRoutes();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
@@ -101,7 +103,7 @@ export function AddCustomerForm() {
       }
 
       // Redirect to customers page
-      router.push("/dashboard/admin/customers");
+      router.push(routes.customers);
     } catch (err: any) {
       setError(err.message || "Failed to create customer");
     } finally {
@@ -114,7 +116,7 @@ export function AddCustomerForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/admin/customers">
+          <Link href={routes.customers}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back

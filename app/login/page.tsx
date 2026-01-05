@@ -1,18 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { UserRole } from "@prisma/client";
+
+function getDashboardPath(role: UserRole): string {
+  switch (role) {
+    case UserRole.ADMIN:
+      return "/dashboard/admin";
+    case UserRole.MANAGER:
+      return "/dashboard/manager";
+    case UserRole.STAFF:
+      return "/dashboard/staff";
+    default:
+      return "/dashboard/admin";
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard/admin"; // Will be redirected based on role
+  const { data: session } = useSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +42,14 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (session?.user?.role) {
+      const dashboardPath = getDashboardPath(session.user.role as UserRole);
+      router.push(dashboardPath);
+    }
+  }, [session, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -42,13 +64,16 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError(result.error);
-      } else {
-        router.push(callbackUrl);
+        setLoading(false);
+      } else if (result?.ok) {
+        // Redirect to /dashboard which will handle role-based routing
+        // This prevents unauthorized redirects
+        router.push("/dashboard");
         router.refresh();
+        // Loading state will be reset by the navigation
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
-    } finally {
       setLoading(false);
     }
   };
@@ -166,6 +191,42 @@ export default function LoginPage() {
                   Sign up
                 </Link>
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Demo Credentials */}
+        <Card className="mt-6 border border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold text-gray-900">
+              Demo Login Credentials
+            </CardTitle>
+            <CardDescription className="text-sm text-gray-600">
+              Use these credentials to test the system
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Admin */}
+              <div className="p-3 bg-white rounded border border-blue-100 hover:shadow-sm transition-shadow">
+                <p className="text-xs font-semibold text-blue-600 uppercase mb-1.5">Admin</p>
+                <p className="text-sm font-medium text-gray-900 mb-1 break-words">mohamed@sunriseelectronics.com</p>
+                <p className="text-xs text-gray-600">Password: <span className="font-mono">password123</span></p>
+              </div>
+
+              {/* Manager */}
+              <div className="p-3 bg-white rounded border border-blue-100 hover:shadow-sm transition-shadow">
+                <p className="text-xs font-semibold text-purple-600 uppercase mb-1.5">Manager</p>
+                <p className="text-sm font-medium text-gray-900 mb-1">manager@demo.com</p>
+                <p className="text-xs text-gray-600">Password: <span className="font-mono">password123</span></p>
+              </div>
+
+              {/* Staff */}
+              <div className="p-3 bg-white rounded border border-blue-100 hover:shadow-sm transition-shadow">
+                <p className="text-xs font-semibold text-green-600 uppercase mb-1.5">Staff</p>
+                <p className="text-sm font-medium text-gray-900 mb-1">staff@demo.com</p>
+                <p className="text-xs text-gray-600">Password: <span className="font-mono">password123</span></p>
+              </div>
             </div>
           </CardContent>
         </Card>

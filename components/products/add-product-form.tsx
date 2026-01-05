@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { ProductStatus } from "@prisma/client";
 
 export function AddProductForm() {
   const router = useRouter();
+  const routes = useRoutes();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -207,7 +209,7 @@ export function AddProductForm() {
       }
 
       // Redirect to products page
-      router.push("/dashboard/admin/products");
+      router.push(routes.products);
     } catch (err: any) {
       setError(err.message || "Failed to create product");
     } finally {
@@ -227,7 +229,7 @@ export function AddProductForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/admin/products">
+          <Link href={routes.products}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back

@@ -433,6 +433,34 @@ async function main() {
                 districtId: bombaliDistrict.id,
                 emailVerified: new Date(),
             },
+            {
+                name: 'Manager Demo',
+                email: 'manager@demo.com',
+                password: hashedPassword,
+                role: UserRole.MANAGER,
+                businessName: 'Sunrise Electronics',
+                phone: '+232-76-999999',
+                businessType: 'Electronics Retail',
+                location: RegionSierraLeone.WESTERN_AREA,
+                countryId: sierraLeone.id,
+                regionId: westernRegion.id,
+                districtId: westernUrbanDistrict.id,
+                emailVerified: new Date(),
+            },
+            {
+                name: 'Staff Demo',
+                email: 'staff@demo.com',
+                password: hashedPassword,
+                role: UserRole.STAFF,
+                businessName: 'Sunrise Electronics',
+                phone: '+232-76-888888',
+                businessType: 'Electronics Retail',
+                location: RegionSierraLeone.WESTERN_AREA,
+                countryId: sierraLeone.id,
+                regionId: westernRegion.id,
+                districtId: westernUrbanDistrict.id,
+                emailVerified: new Date(),
+            },
         ],
     });
 
@@ -453,7 +481,7 @@ async function main() {
     }
 
     // 7. Create Products for each business
-    const sunriseElectronics = users[0];
+    const sunriseElectronics = users.find(u => u.email === 'mohamed@sunriseelectronics.com')!;
     const freshMart = users[1];
     const buildersDepot = users[2];
 
@@ -549,6 +577,35 @@ async function main() {
             },
         ],
     });
+
+    // Assign Manager and Staff to the first admin's business (Sunrise Electronics)
+    const managerUser = users.find(u => u.email === 'manager@demo.com');
+    const staffUser = users.find(u => u.email === 'staff@demo.com');
+    
+    // Update Manager and Staff to belong to Sunrise Electronics business
+    if (managerUser) {
+        await prisma.user.update({
+            where: { id: managerUser.id },
+            data: { 
+                businessName: sunriseElectronics.businessName,
+                countryId: sunriseElectronics.countryId,
+                regionId: sunriseElectronics.regionId,
+                districtId: sunriseElectronics.districtId,
+            },
+        });
+    }
+    
+    if (staffUser) {
+        await prisma.user.update({
+            where: { id: staffUser.id },
+            data: { 
+                businessName: sunriseElectronics.businessName,
+                countryId: sunriseElectronics.countryId,
+                regionId: sunriseElectronics.regionId,
+                districtId: sunriseElectronics.districtId,
+            },
+        });
+    }
 
     // 8. Create Customers for each business
     const centralBusinessDistrict = locations.find(l => l.name === 'Central Business District')!;
@@ -718,8 +775,17 @@ async function main() {
     });
 
     console.log('✅ Seed completed successfully!');
-    console.log('📧 Login emails:');
-    users.forEach(user => {
+    console.log('📧 Login credentials:');
+    console.log('\n👑 Admin Accounts:');
+    users.filter(u => u.role === UserRole.ADMIN).forEach(user => {
+        console.log(`   ${user.email} - Password: password123`);
+    });
+    console.log('\n👔 Manager Account:');
+    users.filter(u => u.role === UserRole.MANAGER).forEach(user => {
+        console.log(`   ${user.email} - Password: password123`);
+    });
+    console.log('\n👤 Staff Account:');
+    users.filter(u => u.role === UserRole.STAFF).forEach(user => {
         console.log(`   ${user.email} - Password: password123`);
     });
 }

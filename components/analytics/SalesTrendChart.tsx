@@ -39,7 +39,7 @@ export function SalesTrendChart({ data }: SalesTrendChartProps) {
         <CardTitle className="text-lg font-semibold text-gray-900">Sales Trends</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={400}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis

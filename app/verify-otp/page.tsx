@@ -98,13 +98,52 @@ export default function VerifyOTPPage() {
 
       setSuccess(true);
 
-      // Store verified OTP in sessionStorage for registration
+      // If registration, complete the registration process
       if (purpose === "REGISTRATION") {
-        sessionStorage.setItem(`otp_${email}`, otpCode);
-        // Redirect back to register with verified flag
-        setTimeout(() => {
-          router.push(`/register?email=${encodeURIComponent(email)}&otpVerified=true`);
-        }, 1500);
+        // Get registration data from sessionStorage
+        const registrationData = sessionStorage.getItem(`registration_data_${email}`);
+        
+        if (registrationData) {
+          try {
+            const data = JSON.parse(registrationData);
+            
+            // Complete registration with verified OTP
+            const registerResponse = await fetch("/api/auth/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ...data,
+                otpCode: otpCode,
+              }),
+            });
+
+            const registerResult = await registerResponse.json();
+
+            if (!registerResponse.ok) {
+              throw new Error(registerResult.error || "Registration failed");
+            }
+
+            // Clear registration data
+            sessionStorage.removeItem(`registration_data_${email}`);
+            sessionStorage.removeItem(`otp_${email}`);
+
+            // Redirect to login with success message
+            setTimeout(() => {
+              router.push("/login?registered=true");
+            }, 1500);
+          } catch (err: any) {
+            setError(err.message || "Failed to complete registration");
+            setSuccess(false);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // No registration data found, redirect back to register
+          sessionStorage.setItem(`otp_${email}`, otpCode);
+          setTimeout(() => {
+            router.push(`/register?email=${encodeURIComponent(email)}&otpVerified=true`);
+          }, 1500);
+        }
       } else {
         // For other purposes, redirect to appropriate page
         setTimeout(() => {

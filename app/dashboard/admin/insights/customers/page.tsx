@@ -1,9 +1,10 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireRole } from "@/lib/auth-helpers";
+import { UserRole } from "@prisma/client";
 import { CustomerInsightsView } from "@/components/insights/customer-insights-view";
 
-export default async function CustomerInsightsPage() {
-  await requireAuth();
+export default async function AdminCustomerInsightsPage() {
+  await requireRole([UserRole.ADMIN]);
 
   return (
     <DashboardLayout>

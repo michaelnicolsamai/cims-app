@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import {
   Search,
   Plus,
@@ -27,6 +28,9 @@ import {
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { CustomerType } from "@prisma/client";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CustomerEditModal } from "@/components/customers/customer-edit-modal";
 
 interface Customer {
   id: string;
@@ -81,11 +85,17 @@ interface CustomersResponse {
 }
 
 export function CustomersView() {
+  const routes = useRoutes();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteCustomer, setDeleteCustomer] = useState<Customer | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -207,7 +217,7 @@ export function CustomersView() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Link href="/dashboard/admin/customers/add">
+          <Link href={routes.customersAdd}>
             <Button size="sm">
               <Plus className="w-4 h-4 mr-2" />
               Add Customer
@@ -469,7 +479,7 @@ export function CustomersView() {
                         <td className="py-4 px-4">
                           <div>
                             <Link
-                              href={`/dashboard/admin/customers/${customer.id}/insights`}
+                              href={routes.customersInsights(customer.id)}
                               className="font-medium text-gray-900 hover:text-blue-600"
                             >
                               {customer.name}
@@ -555,21 +565,37 @@ export function CustomersView() {
                           )}
                         </td>
                         <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <Link
-                              href={`/dashboard/admin/customers/${customer.id}/insights`}
-                            >
-                              <Button variant="ghost" size="sm">
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                            </Link>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
+                          <ActionMenu
+                            items={[
+                              {
+                                label: "View",
+                                icon: <Eye className="w-4 h-4" />,
+                                onClick: () => {
+                                  setSelectedCustomer(customer);
+                                  setModalMode("view");
+                                  setIsModalOpen(true);
+                                },
+                              },
+                              {
+                                label: "Edit",
+                                icon: <Edit className="w-4 h-4" />,
+                                onClick: () => {
+                                  setSelectedCustomer(customer);
+                                  setModalMode("edit");
+                                  setIsModalOpen(true);
+                                },
+                              },
+                              {
+                                label: "Delete",
+                                icon: <Trash2 className="w-4 h-4" />,
+                                onClick: () => {
+                                  setDeleteCustomer(customer);
+                                  setIsDeleteDialogOpen(true);
+                                },
+                                variant: "destructive",
+                              },
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -635,6 +661,52 @@ export function CustomersView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Customer Edit/View Modal */}
+      <CustomerEditModal
+        customer={selectedCustomer}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        onSave={() => {
+          fetchCustomers();
+        }}
+        mode={modalMode}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setDeleteCustomer(null);
+        }}
+        onConfirm={async () => {
+          if (deleteCustomer) {
+            try {
+              const response = await fetch(`/api/customers/${deleteCustomer.id}`, {
+                method: "DELETE",
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to delete customer");
+              }
+
+              fetchCustomers();
+            } catch (error) {
+              console.error("Error deleting customer:", error);
+              alert("Failed to delete customer. Please try again.");
+            }
+          }
+        }}
+        title="Delete Customer"
+        message={`Are you sure you want to delete ${deleteCustomer?.name}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }

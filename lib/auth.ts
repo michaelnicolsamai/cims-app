@@ -74,6 +74,20 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // If redirecting to login, don't override
+      if (url.includes("/login")) {
+        return url;
+      }
+      // If there's a callbackUrl, use it
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+      if (new URL(url).origin === baseUrl) {
+        return url;
+      }
+      return baseUrl;
+    },
   },
   secret: process.env.NEXTAUTH_SECRET || "fallback-secret-key-change-in-production",
   debug: process.env.NODE_ENV === "development",

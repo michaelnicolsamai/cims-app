@@ -89,6 +89,12 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-6">
+      {/* Customer Insights Header */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Customer Insight Management</h2>
+        <p className="text-sm text-gray-600">Comprehensive analytics and insights for data-driven decisions</p>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

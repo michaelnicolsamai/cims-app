@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sendEmail, getVerificationEmailHtml } from "@/lib/email";
-import { verifyOTP } from "@/lib/otp";
 import crypto from "crypto";
 
 const registerSchema = z.object({
@@ -12,8 +11,8 @@ const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   businessName: z.string().min(2, "Business name is required"),
-  phone: z.string().optional(),
-  businessType: z.string().optional(),
+  phone: z.string().min(1, "Phone number is required"),
+  businessType: z.string().min(1, "Business type is required"),
   otpCode: z.string().length(6, "OTP code must be 6 digits"),
 });
 
@@ -34,16 +33,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify OTP
-    const otpResult = await verifyOTP(
-      validatedData.email,
-      validatedData.otpCode,
-      "REGISTRATION"
-    );
+    // Confirm that a previously verified OTP exists for this email/code/purpose
+    const existingOtp = await prisma.oTP.findFirst({
+      where: {
+        email: validatedData.email,
+        code: validatedData.otpCode,
+        purpose: "REGISTRATION",
+        verified: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-    if (!otpResult.success || !otpResult.valid) {
+    if (!existingOtp || new Date() > existingOtp.expiresAt) {
       return NextResponse.json(
-        { error: otpResult.error || "Invalid or expired OTP code" },
+        { error: "Invalid or expired OTP code" },
         { status: 400 }
       );
     }

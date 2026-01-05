@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRoutes } from "@/lib/hooks/use-routes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,9 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { PaymentMethod, PaymentStatus, SaleStatus } from "@prisma/client";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SlideModal } from "@/components/ui/slide-modal";
 
 interface SaleItem {
   id: string;
@@ -94,11 +98,16 @@ interface SalesResponse {
 }
 
 export function SalesView() {
+  const routes = useRoutes();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteSale, setDeleteSale] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -254,7 +263,7 @@ export function SalesView() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Link href="/dashboard/admin/sales/add">
+          <Link href={routes.salesAdd}>
             <Button size="sm">
               <Plus className="w-4 h-4 mr-2" />
               New Sale
@@ -632,7 +641,7 @@ export function SalesView() {
                           {sale.customer ? (
                             <div>
                               <Link
-                                href={`/dashboard/admin/customers/${sale.customer.id}/insights`}
+                                href={routes.customersInsights(sale.customer.id)}
                                 className="font-medium text-gray-900 hover:text-blue-600"
                               >
                                 {sale.customer.name}
@@ -712,17 +721,35 @@ export function SalesView() {
                           </span>
                         </td>
                         <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
+                          <ActionMenu
+                            items={[
+                              {
+                                label: "View",
+                                icon: <Eye className="w-4 h-4" />,
+                                onClick: async () => {
+                                  try {
+                                    const response = await fetch(`/api/sales/${sale.id}`);
+                                    const data = await response.json();
+                                    if (data.success) {
+                                      setSelectedSale(data.data);
+                                      setIsModalOpen(true);
+                                    }
+                                  } catch (error) {
+                                    console.error("Error fetching sale:", error);
+                                  }
+                                },
+                              },
+                              {
+                                label: "Delete",
+                                icon: <Trash2 className="w-4 h-4" />,
+                                onClick: () => {
+                                  setDeleteSale(sale);
+                                  setIsDeleteDialogOpen(true);
+                                },
+                                variant: "destructive",
+                              },
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -791,6 +818,132 @@ export function SalesView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Sale View Modal */}
+      {selectedSale && (
+        <SlideModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedSale(null);
+          }}
+          title={`Sale Details: ${selectedSale.invoiceNumber}`}
+        >
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-gray-900">Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Customer Name</p>
+                  <p className="font-medium text-gray-900">{selectedSale.customer?.name || "—"}</p>
+                  {selectedSale.customer?.phone && (
+                    <>
+                      <p className="text-sm text-gray-600 mt-2">Phone</p>
+                      <p className="font-medium text-gray-900">{selectedSale.customer.phone}</p>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-gray-900">Sale Items</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {selectedSale.saleItems?.map((item: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">{item.product?.name || "Unknown Product"}</p>
+                        <p className="text-sm text-gray-600">SKU: {item.product?.sku || "—"}</p>
+                        <p className="text-sm text-gray-600">Qty: {item.quantity} @ {new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "SLL",
+                          minimumFractionDigits: 0,
+                        }).format(item.unitPrice)}</p>
+                      </div>
+                      <p className="font-semibold text-gray-900">
+                        {new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "SLL",
+                          minimumFractionDigits: 0,
+                        }).format(item.totalPrice)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-gray-900">Payment Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Amount</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {new Intl.NumberFormat("en-US", {
+                        style: "currency",
+                        currency: "SLL",
+                        minimumFractionDigits: 0,
+                      }).format(selectedSale.totalAmount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Payment Method</p>
+                    <p className="font-medium text-gray-900">{selectedSale.paymentMethod?.replace("_", " ") || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Payment Status</p>
+                    <p className="font-medium text-gray-900">{selectedSale.paymentStatus?.replace("_", " ") || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Sale Status</p>
+                    <p className="font-medium text-gray-900">{selectedSale.status?.replace("_", " ") || "—"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </SlideModal>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setDeleteSale(null);
+        }}
+        onConfirm={async () => {
+          if (deleteSale) {
+            try {
+              const response = await fetch(`/api/sales/${deleteSale.id}`, {
+                method: "DELETE",
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to delete sale");
+              }
+
+              fetchSales();
+            } catch (error) {
+              console.error("Error deleting sale:", error);
+              alert("Failed to delete sale. Please try again.");
+            }
+          }
+        }}
+        title="Delete Sale"
+        message={`Are you sure you want to delete sale ${deleteSale?.invoiceNumber}? This action cannot be undone and will restore product stock.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }

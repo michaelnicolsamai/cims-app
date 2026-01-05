@@ -9,6 +9,11 @@ const emailConfig = {
     user: process.env.SMTP_USER || process.env.EMAIL_FROM,
     pass: process.env.SMTP_PASSWORD || process.env.EMAIL_APP_PASSWORD,
   },
+  // Allow self-signed certificates in dev environments to avoid TLS errors
+  tls: {
+    rejectUnauthorized:
+      process.env.EMAIL_TLS_REJECT_UNAUTHORIZED === "true" ? true : false,
+  },
 };
 
 // Create transporter
