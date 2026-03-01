@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CustomerInsightsView } from "@/components/insights/customer-insights-view";
+import { KeyInsightsView } from "@/components/insights/key-insights-view";
 import { Users, TrendingUp, DollarSign, AlertTriangle, Filter, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,9 @@ export function ManagerCustomerInsightsContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Key Insights - Colored alert cards & Customer Analysis Summary */}
+      <KeyInsightsView />
 
       {/* Filters */}
       <Card>

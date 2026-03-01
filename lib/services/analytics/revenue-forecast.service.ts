@@ -10,6 +10,17 @@ export interface RevenueForecast {
   factors: string[];
 }
 
+export interface HistoricalRevenue {
+  period: string;
+  actualRevenue: number;
+  type: "historical";
+}
+
+export interface RevenueForecastWithHistory {
+  historical: HistoricalRevenue[];
+  forecast: RevenueForecast[];
+}
+
 /**
  * Enhanced revenue forecasting using multiple methods:
  * 1. Exponential Smoothing (Holt-Winters method)
@@ -152,6 +163,43 @@ export async function forecastRevenue(
   }
 
   return forecasts;
+}
+
+/**
+ * Get combined historical performance and predicted revenue for trend visualization.
+ * Supports budgeting, inventory preparation, and seasonal decision-making.
+ */
+export async function getHistoricalAndForecastRevenue(
+  ownerId: string,
+  monthsAhead: number = 6,
+  historicalMonths: number = 12
+): Promise<RevenueForecastWithHistory> {
+  const now = new Date();
+  const historical: HistoricalRevenue[] = [];
+
+  // Build historical data
+  for (let i = historicalMonths - 1; i >= 0; i--) {
+    const monthStart = startOfMonth(subMonths(now, i));
+    const monthEnd = endOfMonth(monthStart);
+    const period = format(monthStart, "yyyy-MM");
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        ownerId,
+        saleDate: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+        status: "COMPLETED",
+      },
+    });
+
+    const actualRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+    historical.push({ period, actualRevenue, type: "historical" });
+  }
+
+  const forecast = await forecastRevenue(ownerId, monthsAhead, historicalMonths);
+  return { historical, forecast };
 }
 
 /**

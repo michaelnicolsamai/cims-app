@@ -22,6 +22,7 @@ interface BestSellingProduct {
 export function SalesAnalyticsView() {
   const [salesTrends, setSalesTrends] = useState<any[]>([]);
   const [forecast, setForecast] = useState<any[]>([]);
+  const [historicalRevenue, setHistoricalRevenue] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodAnalysis[]>([]);
   const [bestSellers, setBestSellers] = useState<BestSellingProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +32,7 @@ export function SalesAnalyticsView() {
       try {
         const [trendsRes, forecastRes, paymentRes, productsRes] = await Promise.all([
           fetch("/api/analytics/sales/trends?months=12"),
-          fetch("/api/analytics/sales/forecast?monthsAhead=6"),
+          fetch("/api/analytics/sales/forecast?monthsAhead=6&combined=true"),
           fetch("/api/analytics/sales/payment-methods"),
           fetch("/api/analytics/sales/best-products"),
         ]);
@@ -42,7 +43,16 @@ export function SalesAnalyticsView() {
         const productsData = await productsRes.json();
 
         if (trendsData.success) setSalesTrends(trendsData.data);
-        if (forecastData.success) setForecast(forecastData.data);
+        if (forecastData.success) {
+          const fd = forecastData.data;
+          if (fd?.historical && fd?.forecast) {
+            setHistoricalRevenue(fd.historical);
+            setForecast(fd.forecast);
+          } else {
+            setHistoricalRevenue([]);
+            setForecast(Array.isArray(fd) ? fd : []);
+          }
+        }
         if (paymentData.success) setPaymentMethods(paymentData.data);
         if (productsData.success) setBestSellers(productsData.data);
       } catch (error) {
@@ -78,8 +88,14 @@ export function SalesAnalyticsView() {
       {/* Sales Trends */}
       {salesTrends.length > 0 && <SalesTrendChart data={salesTrends} />}
 
-      {/* Revenue Forecast */}
-      {forecast.length > 0 && <RevenueForecastChart data={forecast} />}
+      {/* Revenue Forecast - Historical + Predicted trend visualization */}
+      {forecast.length > 0 && (
+        <RevenueForecastChart
+          data={forecast}
+          historical={historicalRevenue}
+          showInfoBanner
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Payment Methods */}

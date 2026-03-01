@@ -25,6 +25,7 @@ interface BestSellingProduct {
 export function ManagerSalesAnalyticsContent() {
   const [salesTrends, setSalesTrends] = useState<any[]>([]);
   const [forecast, setForecast] = useState<any[]>([]);
+  const [historicalRevenue, setHistoricalRevenue] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodAnalysis[]>([]);
   const [bestSellers, setBestSellers] = useState<BestSellingProduct[]>([]);
   const [salesStats, setSalesStats] = useState<any>(null);
@@ -40,7 +41,7 @@ export function ManagerSalesAnalyticsContent() {
         setLoading(true);
         const [trendsRes, forecastRes, paymentRes, productsRes, salesRes] = await Promise.all([
           fetch(`/api/analytics/sales/trends?months=${monthsRange}`),
-          fetch(`/api/analytics/sales/forecast?monthsAhead=${forecastMonths}`),
+          fetch(`/api/analytics/sales/forecast?monthsAhead=${forecastMonths}&combined=true`),
           fetch("/api/analytics/sales/payment-methods"),
           fetch(`/api/analytics/sales/best-products?limit=${bestSellersLimit}`),
           fetch("/api/sales?limit=1"),
@@ -53,7 +54,16 @@ export function ManagerSalesAnalyticsContent() {
         const salesData = await salesRes.json();
 
         if (trendsData.success) setSalesTrends(trendsData.data);
-        if (forecastData.success) setForecast(forecastData.data);
+        if (forecastData.success) {
+          const fd = forecastData.data;
+          if (fd?.historical && fd?.forecast) {
+            setHistoricalRevenue(fd.historical);
+            setForecast(fd.forecast);
+          } else {
+            setHistoricalRevenue([]);
+            setForecast(Array.isArray(fd) ? fd : []);
+          }
+        }
         if (paymentData.success) setPaymentMethods(paymentData.data);
         if (productsData.success) setBestSellers(productsData.data);
         if (salesData.success) setSalesStats(salesData.stats);
@@ -325,7 +335,11 @@ export function ManagerSalesAnalyticsContent() {
 
       {forecast.length > 0 && (
         <div className="w-full">
-          <RevenueForecastChart data={forecast} />
+          <RevenueForecastChart
+            data={forecast}
+            historical={historicalRevenue}
+            showInfoBanner
+          />
         </div>
       )}
 

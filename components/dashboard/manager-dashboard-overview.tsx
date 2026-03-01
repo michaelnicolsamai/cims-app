@@ -6,6 +6,7 @@ import { SalesTrendChart } from "@/components/analytics/SalesTrendChart";
 import { CustomerSegmentChart } from "@/components/analytics/CustomerSegmentChart";
 import { RevenueForecastChart } from "@/components/analytics/RevenueForecastChart";
 import { ChurnRiskIndicator } from "@/components/analytics/ChurnRiskIndicator";
+import { KeyInsightsView } from "@/components/insights/key-insights-view";
 import { TrendingUp, Users, DollarSign, AlertTriangle, Package, ShoppingCart, BarChart3, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export function ManagerDashboardOverview() {
   const [salesTrends, setSalesTrends] = useState<any[]>([]);
   const [segments, setSegments] = useState<any[]>([]);
   const [forecast, setForecast] = useState<any[]>([]);
+  const [historicalRevenue, setHistoricalRevenue] = useState<any[]>([]);
   const [churnCustomers, setChurnCustomers] = useState<any[]>([]);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [salesStats, setSalesStats] = useState<any>(null);
@@ -38,7 +40,7 @@ export function ManagerDashboardOverview() {
         const [trendsRes, segmentsRes, forecastRes, churnRes, productsRes, topCustomersRes, salesRes] = await Promise.all([
           fetch("/api/analytics/sales/trends?months=6"),
           fetch("/api/analytics/customers/segments"),
-          fetch("/api/analytics/sales/forecast?monthsAhead=6"),
+          fetch("/api/analytics/sales/forecast?monthsAhead=6&combined=true"),
           fetch("/api/analytics/customers/churn-risk?minRiskLevel=MEDIUM"),
           fetch("/api/products?limit=1"),
           fetch("/api/analytics/customers/insights?limit=5"),
@@ -55,7 +57,16 @@ export function ManagerDashboardOverview() {
 
         if (trendsData.success) setSalesTrends(trendsData.data);
         if (segmentsData.success) setSegments(segmentsData.data);
-        if (forecastData.success) setForecast(forecastData.data);
+        if (forecastData.success) {
+          const fd = forecastData.data;
+          if (fd?.historical && fd?.forecast) {
+            setHistoricalRevenue(fd.historical);
+            setForecast(fd.forecast);
+          } else {
+            setHistoricalRevenue([]);
+            setForecast(Array.isArray(fd) ? fd : []);
+          }
+        }
         if (churnData.success) setChurnCustomers(churnData.data);
         if (topCustomersData.success) setTopCustomers(topCustomersData.data);
         if (salesData.success) setSalesStats(salesData.stats);
@@ -114,6 +125,9 @@ export function ManagerDashboardOverview() {
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Customer Analytics & Insights</h2>
         <p className="text-sm text-gray-600">Monitor customer behavior, sales trends, and business performance</p>
       </div>
+
+      {/* Key Insights - Colored alert cards & Customer Analysis Summary */}
+      <KeyInsightsView />
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -241,7 +255,11 @@ export function ManagerDashboardOverview() {
 
       {forecast.length > 0 && (
         <div className="w-full">
-          <RevenueForecastChart data={forecast} />
+          <RevenueForecastChart
+            data={forecast}
+            historical={historicalRevenue}
+            showInfoBanner
+          />
         </div>
       )}
 

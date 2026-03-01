@@ -13,6 +13,8 @@ import {
   Settings,
   FileText,
   UserCog,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import { UserRole } from "@prisma/client";
 import { getRoutes } from "@/lib/routes";
@@ -51,6 +53,18 @@ const navItems: NavItem[] = [
     getHref: (role) => getRoutes(role).insights.segments,
     label: "Segments",
     icon: BarChart3,
+    roles: ["ADMIN", "MANAGER"],
+  },
+  {
+    getHref: (role) => getRoutes(role).insights.churn,
+    label: "Churn Risk",
+    icon: AlertTriangle,
+    roles: ["ADMIN", "MANAGER"],
+  },
+  {
+    getHref: (role) => getRoutes(role).insights.analyticsLog,
+    label: "Analytics Log",
+    icon: History,
     roles: ["ADMIN", "MANAGER"],
   },
   {

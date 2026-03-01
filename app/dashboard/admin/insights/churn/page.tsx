@@ -1,10 +1,9 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { requireRole } from "@/lib/auth-helpers";
 import { UserRole } from "@prisma/client";
-import { CustomerInsightsView } from "@/components/insights/customer-insights-view";
-import { KeyInsightsView } from "@/components/insights/key-insights-view";
+import { ChurnRiskView } from "@/components/insights/churn-risk-view";
 
-export default async function AdminCustomerInsightsPage() {
+export default async function AdminChurnRiskPage() {
   await requireRole([UserRole.ADMIN]);
 
   return (
@@ -12,16 +11,14 @@ export default async function AdminCustomerInsightsPage() {
       <div className="p-6 space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Customer Insights
+            Churn Prediction & Risk Indicators
           </h1>
           <p className="mt-2 text-sm text-gray-600">
-            Comprehensive analysis of your customer base
+            Churn probability scores and risk categories (high/medium/low) for fast managerial interpretation and proactive retention follow-up
           </p>
         </div>
-        <KeyInsightsView />
-        <CustomerInsightsView />
+        <ChurnRiskView />
       </div>
     </DashboardLayout>
   );
 }
-

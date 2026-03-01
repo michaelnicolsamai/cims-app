@@ -16,6 +16,7 @@ import {
   MapPin,
   Loader2,
   CheckCircle2,
+  Printer,
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 
@@ -130,19 +131,120 @@ export function ReportsView() {
     }
   };
 
-  const handleExport = () => {
-    if (!reportData) return;
+  const handleExport = (format: "csv" | "json") => {
+    if (!reportData || !selectedReport) return;
 
-    // Convert report data to JSON for export
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${selectedReport}_${format(new Date(), "yyyy-MM-dd")}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const baseName = `${selectedReport}_${format(new Date(), "yyyy-MM-dd")}`;
+
+    if (format === "json") {
+      const dataStr = JSON.stringify(reportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${baseName}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    // CSV export
+    const csvContent = reportDataToCsv(reportData, selectedReport);
+    const csvBlob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const csvUrl = URL.createObjectURL(csvBlob);
+    const csvLink = document.createElement("a");
+    csvLink.href = csvUrl;
+    csvLink.download = `${baseName}.csv`;
+    csvLink.click();
+    URL.revokeObjectURL(csvUrl);
   };
+
+  const handlePrint = () => {
+    if (!reportData) return;
+    window.print();
+  };
+
+  /** Convert report data to CSV for analysis and offline reporting */
+  function reportDataToCsv(data: any, type: ReportType): string {
+    const escape = (v: any) => {
+      const s = String(v ?? "");
+      return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = (cols: string[]) => cols.map(escape).join(",");
+    const row = (cols: any[]) => cols.map(escape).join(",");
+
+    switch (type) {
+      case "sales_summary":
+        const daily = data.data?.dailyBreakdown || [];
+        return [
+          header(["Date", "Revenue", "Sales Count"]),
+          ...daily.map((d: any) => row([d.date, d.revenue, d.count])),
+          "",
+          header(["Metric", "Value"]),
+          row(["Total Revenue", data.data?.summary?.totalRevenue]),
+          row(["Total Sales", data.data?.summary?.totalSales]),
+          row(["Avg Order Value", data.data?.summary?.averageOrderValue]),
+        ].join("\n");
+
+      case "sales_detailed":
+        const sales = data.data?.sales || [];
+        return [
+          header(["Invoice", "Date", "Customer", "Total Amount", "Status", "Payment Method"]),
+          ...sales.map((s: any) => row([s.invoiceNumber, s.date, s.customer, s.totalAmount, s.status, s.paymentMethod])),
+        ].join("\n");
+
+      case "customer_analysis":
+        const customers = data.data?.customers || [];
+        return [
+          header(["Name", "Phone", "Email", "Segment", "Total Spent", "Period Revenue", "Visits", "Loyalty Score"]),
+          ...customers.map((c: any) => row([c.name, c.phone, c.email, c.segment, c.totalSpent, c.periodRevenue, c.periodVisits, c.loyaltyScore])),
+        ].join("\n");
+
+      case "product_performance":
+        const products = data.data?.products || [];
+        return [
+          header(["Product", "SKU", "Quantity Sold", "Total Revenue", "Category", "Current Stock"]),
+          ...products.map((p: any) => row([p.productName, p.productSku || p.sku, p.totalQuantity, p.totalRevenue, p.category, p.currentStock])),
+        ].join("\n");
+
+      case "financial_summary":
+        const summary = data.data?.summary || {};
+        const pbd = data.data?.paymentStatusBreakdown || [];
+        return [
+          header(["Metric", "Value"]),
+          row(["Total Revenue", summary.totalRevenue]),
+          row(["Total Paid", summary.totalPaid]),
+          row(["Total Pending", summary.totalPending]),
+          row(["Total Discounts", summary.totalDiscounts]),
+          row(["Total Tax", summary.totalTax]),
+          row(["Net Revenue", summary.netRevenue]),
+          "",
+          header(["Status", "Count", "Amount"]),
+          ...pbd.map((p: any) => row([p.status, p.count, p.amount])),
+        ].join("\n");
+
+      case "payment_analysis":
+        const pm = data.data?.paymentMethods || [];
+        const psa = data.data?.paymentStatusAnalysis || [];
+        return [
+          header(["Payment Method", "Count", "Revenue"]),
+          ...pm.map((p: any) => row([p.method || p.paymentMethod, p.count, p.revenue || p.totalAmount])),
+          "",
+          header(["Status", "Count", "Amount", "Average"]),
+          ...psa.map((p: any) => row([p.status, p.count, p.amount, p.average])),
+        ].join("\n");
+
+      case "regional_sales":
+        const regions = data.data?.regions || [];
+        return [
+          header(["Region", "Total Revenue", "Sales Count"]),
+          ...regions.map((r: any) => row([r.regionName || r.region || r.name, r.totalRevenue, r.totalSales])),
+        ].join("\n");
+
+      default:
+        return JSON.stringify(data, null, 2);
+    }
+  }
 
   const quickDateRanges = [
     { label: "Last 7 Days", days: 7 },
@@ -348,10 +450,19 @@ export function ReportsView() {
                       )}
                     </p>
                   </div>
-                  <Button onClick={handleExport} variant="outline" size="sm">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => handleExport("csv")} variant="outline" size="sm" title="Export as CSV">
+                      <Download className="w-4 h-4 mr-2" />
+                      CSV
+                    </Button>
+                    <Button onClick={() => handleExport("json")} variant="outline" size="sm" title="Export as JSON">
+                      JSON
+                    </Button>
+                    <Button onClick={handlePrint} variant="outline" size="sm" title="Print-friendly view">
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

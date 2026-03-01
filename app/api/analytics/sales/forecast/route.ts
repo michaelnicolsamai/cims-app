@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-helpers";
-import { forecastRevenue } from "@/lib/services/analytics/revenue-forecast.service";
+import { forecastRevenue, getHistoricalAndForecastRevenue } from "@/lib/services/analytics/revenue-forecast.service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +8,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const monthsAhead = parseInt(searchParams.get("monthsAhead") || "6");
     const historicalMonths = parseInt(searchParams.get("historicalMonths") || "12");
+    const combined = searchParams.get("combined") === "true";
+
+    if (combined) {
+      const data = await getHistoricalAndForecastRevenue(user.id, monthsAhead, historicalMonths);
+      return NextResponse.json({ success: true, data });
+    }
 
     const forecast = await forecastRevenue(user.id, monthsAhead, historicalMonths);
 
